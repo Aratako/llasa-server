@@ -1,0 +1,63 @@
+[project]
+name = "llasa-server"
+version = "0.1.0"
+description = "Llasa TTS 推論サーバー"
+readme = "README.md"
+requires-python = ">=3.9"
+
+[tool.ruff]
+# Python バージョン
+target-version = "py39"
+
+# 1行の最大文字数
+line-length = 88
+
+# 除外するファイル/ディレクトリ
+extend-exclude = [
+    "venv",
+    ".venv",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+# 有効にするルール
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+
+# 無視するルール
+ignore = [
+    "E501",  # line too long (formatterが処理)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports
+
+[tool.ruff.lint.isort]
+known-first-party = ["llasa_server"]
+
+[tool.ruff.format]
+# フォーマット設定
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+# pytest設定
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
