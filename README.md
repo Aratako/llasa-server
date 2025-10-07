@@ -86,6 +86,8 @@ python run_server.py --help
 - `--port`: バインドポート（デフォルト: 8000）
 - `--reload`: 自動リロード有効化
 
+また、環境変数 `LOG_LEVEL` でログレベルを設定できます（例: `DEBUG`, `INFO`, `WARNING`, `ERROR`）。
+
 ### Gradio Web UIの起動
 
 上記の推論サーバを使い、ブラウザから簡単に音声生成ができる簡易的なWeb UIも提供しています。
