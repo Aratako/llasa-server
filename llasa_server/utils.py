@@ -108,3 +108,48 @@ def extract_speech_ids(speech_tokens_str: list[str]) -> list[int]:
         else:
             logger.warning(f"Unexpected token: {token_str}")
     return speech_ids
+
+
+def build_llasa_prompt(
+    text: str,
+    reference_speech_ids: list[int] | None = None,
+    reference_text: str | None = None,
+) -> tuple[str, str, int]:
+    """Llasaモデル用のプロンプトを構築する
+
+    Args:
+        text: 生成するテキスト
+        reference_speech_ids: リファレンス音声のspeech ID（オプション）
+        reference_text: リファレンス音声のテキスト（オプション）
+
+    Returns:
+        (input_text, assistant_content, reference_length)のタプル
+        - input_text: フォーマット済みの入力テキスト
+        - assistant_content: アシスタントの応答プレフィックス
+        - reference_length: リファレンスspeech tokenの長さ（ない場合は0）
+    """
+    # テキストを正規化
+    text = normalize_text(text)
+    logger.debug(f"正規化後のテキスト: {text}")
+
+    # プロンプトを構築
+    if reference_speech_ids is not None and reference_text is not None:
+        # リファレンス音声がある場合
+        reference_text = normalize_text(reference_text)
+        speech_ids_prefix = ids_to_speech_tokens(reference_speech_ids)
+        input_text = reference_text + " " + text
+        assistant_content = "<|SPEECH_GENERATION_START|>" + "".join(speech_ids_prefix)
+        reference_length = len(speech_ids_prefix)
+        logger.debug(f"リファレンス音声付きで生成: {reference_length}トークン")
+    else:
+        # リファレンス音声がない場合
+        input_text = text
+        assistant_content = "<|SPEECH_GENERATION_START|>"
+        reference_length = 0
+        logger.debug("リファレンス音声なしで生成")
+
+    formatted_text = (
+        f"<|TEXT_UNDERSTANDING_START|>{input_text}<|TEXT_UNDERSTANDING_END|>"
+    )
+
+    return formatted_text, assistant_content, reference_length

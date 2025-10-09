@@ -1,19 +1,21 @@
-"""vLLMを使用したLlasa推論エンジン"""
+"""SGLangを使用したLlasa推論エンジン"""
 
 import logging
 import re
 from typing import Optional
 
+import nest_asyncio
+import sglang as sgl
 from transformers import AutoTokenizer
-from vllm import LLM, SamplingParams
 
-from .utils import extract_speech_ids, ids_to_speech_tokens, normalize_text
+from .engine_base import BaseLlasaEngine
+from .utils import build_llasa_prompt, extract_speech_ids
 
 logger = logging.getLogger(__name__)
 
 
-class LlasaEngine:
-    """vLLMを使用したLlasa TTSエンジン"""
+class SGLangLlasaEngine(BaseLlasaEngine):
+    """SGLangを使用したLlasa TTSエンジン"""
 
     def __init__(
         self,
@@ -27,24 +29,41 @@ class LlasaEngine:
             model_id: Hugging FaceのモデルID
             tensor_parallel_size: テンソル並列サイズ
             gpu_memory_utilization: GPU メモリ使用率
+            max_model_len: モデルの最大長
         """
+        # SGLangが内部でasyncioを使用するため、nest_asyncioを適用
+        # モジュールインポート時ではなく、初期化時に適用することで
+        # uvloopとの競合を回避（run_server.pyでloop="asyncio"を使用）
+        nest_asyncio.apply()
+
         self.model_id = model_id
 
         # トークナイザーを読み込む
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
 
-        # vLLMエンジンを初期化
-        self.llm = LLM(
-            model=model_id,
-            tensor_parallel_size=tensor_parallel_size,
-            gpu_memory_utilization=gpu_memory_utilization,
-            max_model_len=max_model_len,
+        # SGLangエンジンを初期化
+        logger.info(f"SGLangエンジンを初期化中: {model_id}")
+        self.llm = sgl.Engine(
+            model_path=model_id,
+            tp_size=tensor_parallel_size,
+            mem_fraction_static=gpu_memory_utilization,
+            context_length=max_model_len,
         )
+
+        # SGLangが内部でloggingレベルを変更することがあるため、
+        # エンジン初期化後に明示的にログレベルを復元
+        import os
+
+        log_level = os.getenv("LOG_LEVEL", "INFO")
+        logging.getLogger().setLevel(log_level)
+        logger.setLevel(log_level)
 
         # 特殊トークンのIDを取得
         self.speech_end_id = self.tokenizer.convert_tokens_to_ids(
             "<|SPEECH_GENERATION_END|>"
         )
+
+        logger.info("SGLangエンジンの初期化が完了しました")
 
     def generate_speech_tokens(
         self,
@@ -72,7 +91,7 @@ class LlasaEngine:
 
         Raises:
             ValueError: テキストが空、またはパラメータが無効な場合
-            RuntimeError: vLLMでの生成に失敗した場合
+            RuntimeError: SGLangでの生成に失敗した場合
         """
         # 入力の検証
         if not text or not text.strip():
@@ -103,30 +122,11 @@ class LlasaEngine:
             )
 
         try:
-            # テキストを正規化
-            text = normalize_text(text)
-            logger.debug(f"正規化後のテキスト: {text}")
-
-            # プロンプトを構築
-            if reference_speech_ids is not None and reference_text is not None:
-                # リファレンス音声がある場合
-                reference_text = normalize_text(reference_text)
-                speech_ids_prefix = ids_to_speech_tokens(reference_speech_ids)
-                input_text = reference_text + " " + text
-                assistant_content = "<|SPEECH_GENERATION_START|>" + "".join(
-                    speech_ids_prefix
-                )
-                logger.debug(
-                    f"リファレンス音声付きで生成: {len(reference_speech_ids)}トークン"
-                )
-            else:
-                # リファレンス音声がない場合
-                input_text = text
-                assistant_content = "<|SPEECH_GENERATION_START|>"
-                logger.debug("リファレンス音声なしで生成")
-
-            formatted_text = (
-                f"<|TEXT_UNDERSTANDING_START|>{input_text}<|TEXT_UNDERSTANDING_END|>"
+            # 共通のプロンプト構築関数を使用
+            formatted_text, assistant_content, reference_length = build_llasa_prompt(
+                text=text,
+                reference_speech_ids=reference_speech_ids,
+                reference_text=reference_text,
             )
 
             # チャットテンプレートを適用
@@ -147,35 +147,45 @@ class LlasaEngine:
 
             logger.debug(f"生成プロンプト: {prompt[:500]}...")
 
+            input_ids = self.tokenizer.encode(
+                prompt,
+                add_special_tokens=False,
+            )
+
+            logger.debug(f"入力トークン数: {len(input_ids)}")
+
         except Exception as e:
             logger.error(f"プロンプトの構築に失敗: {e}")
             raise ValueError(f"プロンプトの構築に失敗しました: {str(e)}") from e
 
         try:
             # サンプリングパラメータを設定
-            sampling_params = SamplingParams(
-                temperature=temperature,
-                top_p=top_p,
-                repetition_penalty=repetition_penalty,
-                max_tokens=max_tokens,
-                stop_token_ids=[self.speech_end_id],
+            sampling_params = {
+                "temperature": temperature,
+                "top_p": top_p,
+                "frequency_penalty": repetition_penalty
+                - 1.0,  # SGLangではfrequency_penaltyを使用
+                "max_new_tokens": max_tokens
+                - len(self.tokenizer.encode(prompt, add_special_tokens=False))
+                - 2,
+                "stop_token_ids": [self.speech_end_id],
+            }
+
+            logger.debug("SGLangで生成を開始します")
+            # 生成
+            outputs = self.llm.generate(
+                input_ids=input_ids, sampling_params=sampling_params
             )
 
-            logger.debug("vLLMで生成を開始します")
-            # 生成
-            outputs = self.llm.generate([prompt], sampling_params)
-
             if not outputs:
-                logger.error("vLLMが出力を返しませんでした")
+                logger.error("SGLangが出力を返しませんでした")
                 raise RuntimeError("音声生成に失敗しました（出力が空です）")
 
-            output = outputs[0]
-
             # 生成されたテキストを取得
-            generated_text = output.outputs[0].text
+            generated_text = outputs["text"]
 
         except Exception as e:
-            logger.error(f"vLLMでの生成に失敗: {e}")
+            logger.error(f"SGLangでの生成に失敗: {e}")
             raise RuntimeError(f"音声生成に失敗しました: {str(e)}") from e
 
         try:

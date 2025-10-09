@@ -40,6 +40,9 @@ class ServerConfig:
     llasa_model_id: str = "NandemoGHS/Anime-Llasa-3B"
     xcodec2_model_id: str = "NandemoGHS/Anime-XCodec2"
 
+    # バックエンド設定
+    backend: str = "vllm"  # "vllm", "sglang", or "transformers"
+
     # vLLM設定
     tensor_parallel_size: int = 1
     gpu_memory_utilization: float = 0.8

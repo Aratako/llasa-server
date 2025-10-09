@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
     tts_server = LlasaTTSServer(
         llasa_model_id=config.llasa_model_id,
         xcodec2_model_id=config.xcodec2_model_id,
+        backend=config.backend,
         tensor_parallel_size=config.tensor_parallel_size,
         gpu_memory_utilization=config.gpu_memory_utilization,
         max_model_len=config.max_model_len,
@@ -190,7 +191,20 @@ async def generate_tts(
             },
         )
 
+    except ValueError as e:
+        # 入力バリデーションエラー（パラメータが不正など）
+        logger.warning(f"入力バリデーションエラー: {e}")
+        raise HTTPException(status_code=400, detail=f"入力エラー: {str(e)}") from e
+    except RuntimeError as e:
+        # 音声生成処理のエラー
+        logger.error(f"音声生成処理エラー: {e}")
+        raise HTTPException(status_code=500, detail=f"処理エラー: {str(e)}") from e
+    except HTTPException:
+        # FastAPIのHTTPExceptionはそのまま再送出
+        raise
     except Exception as e:
+        # その他の予期しないエラー
+        logger.exception("予期しないエラーが発生しました")
         raise HTTPException(status_code=500, detail=f"音声生成エラー: {str(e)}") from e
 
     finally:

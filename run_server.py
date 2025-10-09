@@ -37,18 +37,27 @@ def parse_args():
         help="XCodec2モデルのHugging Face ID",
     )
 
-    # vLLM設定
+    # バックエンド設定
+    parser.add_argument(
+        "--backend",
+        type=str,
+        default="vllm",
+        choices=["vllm", "sglang", "transformers"],
+        help="推論バックエンド (vllm/sglang/transformers)",
+    )
+
+    # vLLM/SGLang設定
     parser.add_argument(
         "--tensor-parallel-size",
         type=int,
         default=1,
-        help="vLLMのテンソル並列サイズ",
+        help="vLLM/SGLangのテンソル並列サイズ",
     )
     parser.add_argument(
         "--gpu-memory-utilization",
         type=float,
         default=0.8,
-        help="vLLMのGPUメモリ使用率 (0.0-1.0)",
+        help="vLLM/SGLangのGPUメモリ使用率 (0.0-1.0)",
     )
     parser.add_argument(
         "--max-model-len",
@@ -95,6 +104,7 @@ def main():
     config = ServerConfig(
         llasa_model_id=args.llasa_model_id,
         xcodec2_model_id=args.xcodec2_model_id,
+        backend=args.backend,
         tensor_parallel_size=args.tensor_parallel_size,
         gpu_memory_utilization=args.gpu_memory_utilization,
         max_model_len=args.max_model_len,
@@ -108,11 +118,14 @@ def main():
     set_config(config)
 
     # サーバーを起動
+    # SGLangバックエンドの場合はuvloopを無効化（nest_asyncio互換性のため）
+    loop = "asyncio" if config.backend == "sglang" else "auto"
     uvicorn.run(
         "llasa_server.api:app",
         host=config.host,
         port=config.port,
         reload=config.reload,
+        loop=loop,
     )
 
 

@@ -1,10 +1,14 @@
 # Llasa TTS 推論サーバー
 
-vLLMを使用したLlasa TTSモデルのシンプルな高速推論サーバーです。
+Llasa TTSモデルのシンプルな高速推論サーバーです。vLLM、SGLang、またはTransformersを推論バックエンドとして選択できます。
 
 ## Llasaとは
 
 **Llasa**は、LLaMAアーキテクチャをベースにしたText-to-Speech (TTS) モデルです。テキストを入力として受け取り、対応する**speech token**を出力します。これらのspeech tokenは、**XCodec2**によって音声波形に変換されます。
+
+##  更新履歴
+
+- 2024-10-09: SGLang / Transformersバックエンドのサポートを追加、不具合修正など
 
 ### データフロー
 
@@ -13,7 +17,7 @@ vLLMを使用したLlasa TTSモデルのシンプルな高速推論サーバー�
   ↓
 [テキスト正規化]
   ↓
-[vLLM + Llasa] → Speech token生成
+[vLLM/SGLang/Transformers + Llasa] → Speech token生成
   ↓
 [XCodec2] → 音声波形デコード
   ↓
@@ -22,7 +26,8 @@ vLLMを使用したLlasa TTSモデルのシンプルな高速推論サーバー�
 
 ## 特徴
 
-- **高速推論**: vLLMによる最適化されたLLM推論
+- **柔軟なバックエンド**: vLLM、SGLang、またはTransformersを推論エンジンとして選択可能
+- **高速推論**: vLLM/SGLangによる最適化されたLLM推論
 - **音声クローニング**: リファレンス音声による声質制御のサポート
 - **RESTful API**: FastAPIベースの使いやすいAPI
 - **Web UI**: Gradio製のブラウザインターフェースを利用可能
@@ -36,11 +41,20 @@ WSL2のUbuntu 24.04、Python 3.12、CUDA 12.9の環境で動作確認済みで�
 # XCodec2のインストール
 uv pip install xcodec2==0.1.5
 
-# vLLMのインストール
-uv pip install vllm==0.10.1.1 --torch-backend=auto
+# 推論バックエンドのインストール（いずれか1つ以上を選択）
 
-# その他の依存関係をインストール
+# vLLMを使用する場合
+uv pip install vllm==0.10.2 --torch-backend=auto
 uv pip install -r requirements.txt
+
+# SGLangを使用する場合
+uv pip install "sglang[all]==0.5.3" --prerelease=allow
+uv pip install -r requirements.txt
+
+# transformersを使用する場合
+uv pip install -r requirements.txt
+# 環境によってはCUDAのバージョンにあったtorchの再インストールが必要かもしれません
+# uv pip install -U torch torchaudio --index-url https://download.pytorch.org/whl/cu***
 
 # 開発環境が必要な場合
 uv pip install -r requirements-dev.txt
@@ -61,14 +75,20 @@ python run_server.py
 #### コマンドライン引数での設定
 
 ```bash
+# SGLangバックエンドを使用
+python run_server.py --backend sglang
+
+# Transformersバックエンドを使用
+python run_server.py --backend transformers
+
 # FP8モデルを使用
 python run_server.py --llasa-model-id NandemoGHS/Anime-Llasa-3B-FP8
 
 # カスタムポートで起動
 python run_server.py --port 9000
 
-# vLLMの設定を調整 (マルチGPUなど)
-python run_server.py --gpu-memory-utilization 0.7 --tensor-parallel-size 2
+# vLLM/SGLangの設定を調整 (マルチGPUなど)
+python run_server.py --backend sglang --gpu-memory-utilization 0.9 --tensor-parallel-size 2
 
 # すべてのオプションを確認
 python run_server.py --help
@@ -76,17 +96,16 @@ python run_server.py --help
 
 **利用可能な引数:**
 
+- `--backend`: 推論バックエンド（選択肢: vllm, sglang, transformers、デフォルト: vllm）
 - `--llasa-model-id`: Llasaモデル ID（デフォルト: NandemoGHS/Anime-Llasa-3B）
 - `--xcodec2-model-id`: XCodec2モデル ID（デフォルト: NandemoGHS/Anime-XCodec2）
-- `--tensor-parallel-size`: vLLMのTensor Parallelのサイズ（デフォルト: 1、マルチGPU時に使用）
+- `--tensor-parallel-size`: vLLM/SGLangのTensor Parallelのサイズ（デフォルト: 1、マルチGPU時に使用）
 - `--gpu-memory-utilization`: GPU メモリ使用率（デフォルト: 0.8）
 - `--max-model-len`: コンテキスト長（デフォルト: 2048）
 - `--device`: 仕様デバイス（デフォルト: cuda）
 - `--host`: バインドホスト（デフォルト: 0.0.0.0）
 - `--port`: バインドポート（デフォルト: 8000）
 - `--reload`: 自動リロード有効化
-
-また、環境変数 `LOG_LEVEL` でログレベルを設定できます（例: `DEBUG`, `INFO`, `WARNING`, `ERROR`）。
 
 ### Gradio Web UIの起動
 
@@ -229,7 +248,7 @@ curl http://localhost:8000/health
 
 ### コンポーネント
 
-- **vLLM**: Llasa LLMモデル（NandemoGHS/Anime-Llasa-3B）の推論
+- **vLLM / SGLang / Transformers**: Llasa LLMモデル（NandemoGHS/Anime-Llasa-3B）の推論
 - **XCodec2**: Speech tokenから音声波形への変換（NandemoGHS/Anime-XCodec2）
 - **FastAPI**: REST APIサーバー
 - **Gradio**: Web UIフロントエンド
@@ -240,12 +259,15 @@ curl http://localhost:8000/health
 llasa-server/
 ├── llasa_server/
 │   ├── __init__.py
-│   ├── api.py           # FastAPI エンドポイント
-│   ├── codec.py         # XCodec2 ラッパー
-│   ├── config.py        # サーバー設定管理
-│   ├── engine.py        # vLLM エンジン
-│   ├── server.py        # メインサーバークラス
-│   └── utils.py         # ユーティリティ類
+│   ├── api.py                  # FastAPI エンドポイント
+│   ├── codec.py                # XCodec2 ラッパー
+│   ├── config.py               # サーバー設定管理
+│   ├── engine_vllm.py               # vLLM エンジン
+│   ├── engine_base.py          # エンジン抽象基底クラス
+│   ├── engine_sglang.py        # SGLang エンジン
+│   ├── engine_transformers.py  # Transformers エンジン
+│   ├── server.py               # メインサーバークラス
+│   └── utils.py                # ユーティリティ類
 ├── run_server.py        # APIサーバー起動スクリプト
 ├── gradio_ui.py         # Gradio Web UI
 ├── example_client.py    # 推論のサンプルスクリプト

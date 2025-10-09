@@ -5,10 +5,11 @@ import time
 from typing import Optional
 
 import numpy as np
+import torch
 
 from .codec import XCodec2Wrapper
 from .config import AudioConstants
-from .engine import LlasaEngine
+from .engine_base import BaseLlasaEngine
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class LlasaTTSServer:
         self,
         llasa_model_id: str = "NandemoGHS/Anime-Llasa-3B",
         xcodec2_model_id: str = "NandemoGHS/Anime-XCodec2",
+        backend: str = "vllm",
         tensor_parallel_size: int = 1,
         gpu_memory_utilization: float = 0.8,
         max_model_len: int = 2048,
@@ -29,18 +31,46 @@ class LlasaTTSServer:
         Args:
             llasa_model_id: LlasaモデルのHugging Face ID
             xcodec2_model_id: XCodec2モデルのHugging Face ID
-            tensor_parallel_size: vLLMのテンソル並列サイズ
-            gpu_memory_utilization: vLLMのGPUメモリ使用率
+            backend: 推論バックエンド ("vllm", "sglang", or "transformers")
+            tensor_parallel_size: vLLM/SGLangのテンソル並列サイズ
+            gpu_memory_utilization: vLLM/SGLangのGPUメモリ使用率
             max_model_len: モデルの最大長
             device: 使用するデバイス
         """
-        logger.info("vLLMエンジンを初期化中...")
-        self.llasa_engine = LlasaEngine(
-            model_id=llasa_model_id,
-            tensor_parallel_size=tensor_parallel_size,
-            gpu_memory_utilization=gpu_memory_utilization,
-            max_model_len=max_model_len,
-        )
+        # バックエンドに応じてエンジンを初期化（遅延インポート）
+        if backend == "vllm":
+            logger.info("vLLMエンジンを初期化中...")
+            from .engine_vllm import VLLMLlasaEngine
+
+            self.llasa_engine: BaseLlasaEngine = VLLMLlasaEngine(
+                model_id=llasa_model_id,
+                tensor_parallel_size=tensor_parallel_size,
+                gpu_memory_utilization=gpu_memory_utilization,
+                max_model_len=max_model_len,
+            )
+        elif backend == "sglang":
+            logger.info("SGLangエンジンを初期化中...")
+            from .engine_sglang import SGLangLlasaEngine
+
+            self.llasa_engine: BaseLlasaEngine = SGLangLlasaEngine(
+                model_id=llasa_model_id,
+                tensor_parallel_size=tensor_parallel_size,
+                gpu_memory_utilization=gpu_memory_utilization,
+                max_model_len=max_model_len,
+            )
+        elif backend == "transformers":
+            logger.info("Transformersエンジンを初期化中...")
+            from .engine_transformers import TransformersLlasaEngine
+
+            self.llasa_engine: BaseLlasaEngine = TransformersLlasaEngine(
+                model_id=llasa_model_id,
+                device=device,
+                torch_dtype=torch.bfloat16,
+            )
+        else:
+            raise ValueError(
+                f"無効なバックエンド: {backend} (選択肢: 'vllm', 'sglang', 'transformers')"
+            )
 
         logger.info("XCodec2を初期化中...")
         self.codec = XCodec2Wrapper(

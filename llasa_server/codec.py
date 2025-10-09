@@ -6,6 +6,9 @@ import os
 import numpy as np
 import torch
 import torchaudio
+from huggingface_hub import hf_hub_download
+from safetensors import safe_open
+from xcodec2.configuration_bigcodec import BigCodecConfig
 from xcodec2.modeling_xcodec2 import XCodec2Model
 
 from .config import AudioConstants
@@ -25,7 +28,17 @@ class XCodec2Wrapper:
             device: 使用するデバイス（cuda/cpu）
         """
         self.device = device
-        self.model = XCodec2Model.from_pretrained(model_id)
+        # transformers > 4.49.0 での不具合対応
+        # https://github.com/zhenye234/X-Codec-2.0/issues/24#issuecomment-2911159706
+        ckpt_path = hf_hub_download(repo_id=model_id, filename="model.safetensors")
+        ckpt = {}
+        with safe_open(ckpt_path, framework="pt", device="cpu") as f:
+            for k in f.keys():
+                ckpt[k.replace(".beta", ".bias")] = f.get_tensor(k)
+        codec_config = BigCodecConfig.from_pretrained(model_id)
+        self.model = XCodec2Model.from_pretrained(
+            None, config=codec_config, state_dict=ckpt
+        )
         self.model.eval().to(device)
 
     def encode_audio(
