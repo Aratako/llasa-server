@@ -8,7 +8,6 @@ import numpy as np
 import torch
 
 from .codec import XCodec2Wrapper
-from .config import AudioConstants
 from .engine_base import BaseLlasaEngine
 
 logger = logging.getLogger(__name__)
@@ -26,6 +25,7 @@ class LlasaTTSServer:
         gpu_memory_utilization: float = 0.8,
         max_model_len: int = 2048,
         device: str = "cuda",
+        output_sample_rate: int = 16000,
     ):
         """
         Args:
@@ -36,7 +36,9 @@ class LlasaTTSServer:
             gpu_memory_utilization: vLLM/SGLangのGPUメモリ使用率
             max_model_len: モデルの最大長
             device: 使用するデバイス
+            output_sample_rate: 出力音声のサンプリングレート (Hz)
         """
+        self.output_sample_rate = output_sample_rate
         # バックエンドに応じてエンジンを初期化（遅延インポート）
         if backend == "vllm":
             logger.info("vLLMエンジンを初期化中...")
@@ -133,4 +135,4 @@ class LlasaTTSServer:
         end = time.perf_counter()
         logger.debug(f"音声生成に{end - start:.2f}秒かかりました")
 
-        return audio_waveform, AudioConstants.SAMPLE_RATE
+        return audio_waveform, self.output_sample_rate

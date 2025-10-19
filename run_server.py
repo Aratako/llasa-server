@@ -74,6 +74,14 @@ def parse_args():
         help="使用するデバイス (cuda/cpu)",
     )
 
+    # 音声出力設定
+    parser.add_argument(
+        "--output-sample-rate",
+        type=int,
+        default=16000,
+        help="出力音声のサンプリングレート (Hz)",
+    )
+
     # サーバー設定
     parser.add_argument(
         "--host",
@@ -109,6 +117,7 @@ def main():
         gpu_memory_utilization=args.gpu_memory_utilization,
         max_model_len=args.max_model_len,
         device=args.device,
+        output_sample_rate=args.output_sample_rate,
         host=args.host,
         port=args.port,
         reload=args.reload,

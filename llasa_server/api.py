@@ -40,6 +40,7 @@ async def lifespan(app: FastAPI):
         gpu_memory_utilization=config.gpu_memory_utilization,
         max_model_len=config.max_model_len,
         device=config.device,
+        output_sample_rate=config.output_sample_rate,
     )
     logger.info("サーバー起動完了！")
 

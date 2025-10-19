@@ -51,6 +51,9 @@ class ServerConfig:
     # デバイス設定
     device: str = "cuda"
 
+    # 音声出力設定
+    output_sample_rate: int = 16000  # 出力音声のサンプリングレート (Hz)
+
     # サーバー設定
     host: str = "0.0.0.0"
     port: int = 8000

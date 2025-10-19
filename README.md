@@ -8,6 +8,7 @@ Llasa TTSモデルのシンプルな高速推論サーバーです。vLLM、SGLa
 
 ##  更新履歴
 
+- 2025-10-19: 44.1kHz出力対応、XCodec2-44.1kHzモデルのサポート追加、`--output-sample-rate`オプション追加
 - 2024-10-09: SGLang / Transformersバックエンドのサポートを追加、不具合修正など
 
 ### データフロー
@@ -21,7 +22,7 @@ Llasa TTSモデルのシンプルな高速推論サーバーです。vLLM、SGLa
   ↓
 [XCodec2] → 音声波形デコード
   ↓
-16kHz WAV音声出力
+WAV音声出力（16kHz または 44.1kHz）
 ```
 
 ## 特徴
@@ -38,8 +39,8 @@ Llasa TTSモデルのシンプルな高速推論サーバーです。vLLM、SGLa
 WSL2のUbuntu 24.04、Python 3.12、CUDA 12.9の環境で動作確認済みです。
 
 ```bash
-# XCodec2のインストール
-uv pip install xcodec2==0.1.5
+# XCodec2のインストール（44.1kHz対応版、16kHzモデルとの後方互換性あり）
+uv pip install https://huggingface.co/NandemoGHS/Anime-XCodec2-44.1kHz/resolve/main/xcodec2-0.1.6.tar.gz
 
 # 推論バックエンドのインストール（いずれか1つ以上を選択）
 
@@ -84,6 +85,9 @@ python run_server.py --backend transformers
 # FP8モデルを使用
 python run_server.py --llasa-model-id NandemoGHS/Anime-Llasa-3B-FP8
 
+# 44.1kHzモデルを使用（output-sample-rateの設定が必須）
+python run_server.py --xcodec2-model-id NandemoGHS/Anime-XCodec2-44.1kHz --output-sample-rate 44100
+
 # カスタムポートで起動
 python run_server.py --port 9000
 
@@ -103,6 +107,8 @@ python run_server.py --help
 - `--gpu-memory-utilization`: GPU メモリ使用率（デフォルト: 0.8）
 - `--max-model-len`: コンテキスト長（デフォルト: 2048）
 - `--device`: 仕様デバイス（デフォルト: cuda）
+- `--output-sample-rate`: 出力音声のサンプリングレート（Hz）（デフォルト: 16000）
+  - **重要**: 44.1kHzモデル（`NandemoGHS/Anime-XCodec2-44.1kHz`）を使用する場合は `44100` を指定する必要があります
 - `--host`: バインドホスト（デフォルト: 0.0.0.0）
 - `--port`: バインドポート（デフォルト: 8000）
 - `--reload`: 自動リロード有効化
@@ -157,7 +163,9 @@ LLASA_SERVER_URL=http://192.168.1.100:8000 python gradio_ui.py
 - `repetition_penalty` (デフォルト: 1.1): Llasaのrepetition penalty
 - `max_tokens` (デフォルト: 2048): 生成する最大トークン数
 
-**レスポンス:** WAV形式の音声データ（wav、16kHz、モノラル）
+**レスポンス:** WAV形式の音声データ（wav、デフォルト16kHz、モノラル）
+
+- サンプリングレートは `--output-sample-rate` オプションで変更可能
 
 ### 使用例
 
