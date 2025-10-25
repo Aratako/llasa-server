@@ -104,6 +104,9 @@ async def generate_tts(
     reference_text: Optional[str] = Form(
         None, description="リファレンス音声のテキスト（オプション）"
     ),
+    system_prompt: Optional[str] = Form(
+        None, description="システムプロンプト（オプション、メタデータを含む）"
+    ),
     temperature: float = Form(0.8, description="サンプリング温度"),
     top_p: float = Form(1.0, description="Top-pサンプリング"),
     repetition_penalty: float = Form(1.1, description="繰り返しペナルティ"),
@@ -115,6 +118,7 @@ async def generate_tts(
         text: 生成するテキスト
         reference_audio: リファレンス音声ファイル（オプション）
         reference_text: リファレンス音声のテキスト（オプション）
+        system_prompt: システムプロンプト（オプション、メタデータを含む）
         temperature: サンプリング温度
         top_p: Top-pサンプリング
         repetition_penalty: 繰り返しペナルティ
@@ -173,6 +177,7 @@ async def generate_tts(
             text=text,
             reference_audio_path=reference_audio_path,
             reference_text=reference_text,
+            system_prompt=system_prompt,
             temperature=temperature,
             top_p=top_p,
             repetition_penalty=repetition_penalty,

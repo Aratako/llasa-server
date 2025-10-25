@@ -8,7 +8,8 @@ Llasa TTSモデルのシンプルな高速推論サーバーです。vLLM、SGLa
 
 ##  更新履歴
 
-- 2025-10-19: 44.1kHz出力対応、XCodec2-44.1kHzモデルのサポート追加、`--output-sample-rate`オプション追加
+- 2025-10-25: キャプション対応モデル（Anime-Llasa-3B-Captions）のサポート追加、`system_prompt`パラメータ対応、メタデータ対応UI（`gradio_ui_captions.py`）追加
+- 2025-10-17: 44.1kHz出力対応、XCodec2-44.1kHzモデルのサポート追加、`--output-sample-rate`オプション追加
 - 2024-10-09: SGLang / Transformersバックエンドのサポートを追加、不具合修正など
 
 ### データフロー
@@ -30,8 +31,9 @@ WAV音声出力（16kHz または 44.1kHz）
 - **柔軟なバックエンド**: vLLM、SGLang、またはTransformersを推論エンジンとして選択可能
 - **高速推論**: vLLM/SGLangによる最適化されたLLM推論
 - **音声クローニング**: リファレンス音声による声質制御のサポート
+- **メタデータ制御**: キャプション対応モデル（Anime-Llasa-3B-Captions）では、システムプロンプトで音声の特徴（感情、声質、スタイルなど）を細かく制御可能
 - **RESTful API**: FastAPIベースの使いやすいAPI
-- **Web UI**: Gradio製のブラウザインターフェースを利用可能
+- **Web UI**: Gradio製のブラウザインターフェースを利用可能（通常版とメタデータ対応版の2種類）
 - **柔軟な設定**: GPU設定、モデルパラメータの細かい調整が可能
 
 ## インストール
@@ -85,6 +87,9 @@ python run_server.py --backend transformers
 # FP8モデルを使用
 python run_server.py --llasa-model-id NandemoGHS/Anime-Llasa-3B-FP8
 
+# キャプション対応モデルを使用
+python run_server.py --llasa-model-id NandemoGHS/Anime-Llasa-3B-Captions
+
 # 44.1kHzモデルを使用（output-sample-rateの設定が必須）
 python run_server.py --xcodec2-model-id NandemoGHS/Anime-XCodec2-44.1kHz --output-sample-rate 44100
 
@@ -117,11 +122,35 @@ python run_server.py --help
 
 上記の推論サーバを使い、ブラウザから簡単に音声生成ができる簡易的なWeb UIも提供しています。
 
+#### 通常版UI
+
 ```bash
 python gradio_ui.py
 ```
 
 Web UIは `http://localhost:7860` で起動します。
+
+#### メタデータ対応UI（キャプション対応モデル用）
+
+キャプション対応モデル（`NandemoGHS/Anime-Llasa-3B-Captions`）を使用する場合は、メタデータ入力に対応した専用UIを使用できます：
+
+```bash
+python gradio_ui_captions.py
+```
+
+このUIでは、以下のメタデータを指定して音声の特徴を細かく制御できます：
+
+- **caption**: 音声の説明（推奨）
+- **emotion**: 感情タグ（angry, sad, happy, seriousなど）
+- **profile**: 話者プロファイル（若い女性声、大人の男性声など）
+- **mood**: ムード（恥ずかしさ、悲しみなど）
+- **speed**: 話速（ゆっくり、速いなど）
+- **prosody**: 抑揚・リズム（震え声、平坦など）
+- **pitch_timbre**: ピッチ・声質（高め、低め、息多めなど）
+- **style**: スタイル（ナレーション風、会話調など）
+- **notes**: 特記事項（距離感、吐息など）
+
+プリセット例も用意されており、簡単に試すことができます。
 
 #### Web UIのコマンドライン引数
 
@@ -158,6 +187,7 @@ LLASA_SERVER_URL=http://192.168.1.100:8000 python gradio_ui.py
 - `text` (必須): 生成するテキスト
 - `reference_audio` (オプション): リファレンス音声ファイル（WAV形式推奨）
 - `reference_text` (オプション): リファレンス音声のテキスト
+- `system_prompt` (オプション): システムプロンプト（キャプション対応モデル用。メタデータを含む）
 - `temperature` (デフォルト: 0.8): Llasaのtemperature
 - `top_p` (デフォルト: 1.0): Llasaのtop-p
 - `repetition_penalty` (デフォルト: 1.1): Llasaのrepetition penalty
@@ -205,6 +235,66 @@ with open("output.wav", "wb") as f:
     f.write(response.content)
 ```
 
+#### キャプション対応モデルでメタデータを使用する例（Python）
+
+```python
+import requests
+
+url = "http://localhost:8000/tts"
+
+# システムプロンプトを構築
+system_prompt = """emotion: serious
+profile: 落ち着いた女性声
+mood: シリアス、深刻
+speed: 一定
+prosody: メリハリがある、断定的
+pitch_timbre: 中低音、張りのある声
+style: ナレーション風
+notes:
+caption: 落ち着いた中低音の女性声。シリアスな雰囲気で、張りのある声で断定的に話す。ナレーションのようなスタイル。"""
+
+data = {
+    "text": "今思えば、あの時すでに運命の歯車は狂っていたのだろう",
+    "system_prompt": system_prompt,
+}
+
+response = requests.post(url, data=data)
+
+with open("output.wav", "wb") as f:
+    f.write(response.content)
+```
+
+あるいは、`utils.py`の`build_system_prompt()`関数を使用してより簡単に構築できます：
+
+```python
+import requests
+from llasa_server.utils import build_system_prompt
+
+url = "http://localhost:8000/tts"
+
+# メタデータからシステムプロンプトを構築
+system_prompt = build_system_prompt(
+    caption="落ち着いた中低音の女性声。シリアスな雰囲気で、張りのある声で断定的に話す。ナレーションのようなスタイル。",
+    emotion="serious",
+    profile="落ち着いた女性声",
+    mood="シリアス、深刻",
+    speed="一定",
+    prosody="メリハリがある、断定的",
+    pitch_timbre="中低音、張りのある声",
+    style="ナレーション風",
+)
+
+data = {
+    "text": "今思えば、あの時すでに運命の歯車は狂っていたのだろう",
+    "system_prompt": system_prompt,
+}
+
+response = requests.post(url, data=data)
+
+with open("output.wav", "wb") as f:
+    f.write(response.content)
+```
+
 #### cURLでの使用例
 
 ```bash
@@ -222,6 +312,8 @@ curl -X POST "http://localhost:8000/tts" \
 ```
 
 ### Web UIでの使用
+
+#### 通常版UIの使用
 
 1. APIサーバーを起動:
 
@@ -245,6 +337,36 @@ curl -X POST "http://localhost:8000/tts" \
    - **パラメータ**: Temperature、Top-p、Repetition Penaltyを調整
 
 5. 「音声を生成」ボタンをクリック
+
+#### メタデータ対応UIの使用（キャプション対応モデル）
+
+1. キャプション対応モデルでAPIサーバーを起動:
+
+   ```bash
+   python run_server.py --llasa-model-id NandemoGHS/Anime-Llasa-3B-Captions
+   ```
+
+2. 別のターミナルでメタデータ対応UIを起動:
+
+   ```bash
+   python gradio_ui_captions.py
+   ```
+
+3. ブラウザで `http://localhost:7860` にアクセス
+
+4. UIで以下を設定:
+   - **APIサーバーURL**: 必要に応じて変更（デフォルト: <http://localhost:8000>）
+   - **リファレンス音声**: オプションで音声ファイルをアップロード
+   - **リファレンステキスト**: リファレンス音声を使用する場合は必須
+   - **生成するテキスト**: 生成したいテキストを入力
+   - **メタデータ**: caption（推奨）および他のメタデータフィールドを入力
+     - captionは短い日本語で音声の特徴を記述（例：「落ち着いた女性声、シリアスな雰囲気」）
+     - その他のフィールドはオプション（emotion, profile, mood, speed, prosody, pitch_timbre, style, notes）
+   - **パラメータ**: Temperature、Top-p、Repetition Penaltyを調整
+
+5. 「音声を生成」ボタンをクリック
+
+**Examplesタブ**でプリセット例を選択して、すぐに試すこともできます。
 
 ### ヘルスチェック
 
@@ -275,9 +397,10 @@ llasa-server/
 │   ├── engine_sglang.py        # SGLang エンジン
 │   ├── engine_transformers.py  # Transformers エンジン
 │   ├── server.py               # メインサーバークラス
-│   └── utils.py                # ユーティリティ類
+│   └── utils.py                # ユーティリティ類（メタデータ構築関数含む）
 ├── run_server.py        # APIサーバー起動スクリプト
-├── gradio_ui.py         # Gradio Web UI
+├── gradio_ui.py         # Gradio Web UI（通常版）
+├── gradio_ui_captions.py # Gradio Web UI（メタデータ対応版）
 ├── example_client.py    # 推論のサンプルスクリプト
 ├── requirements.txt     # 必要ライブラリ
 ├── requirements-dev.txt # 開発用ライブラリ

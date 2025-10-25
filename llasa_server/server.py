@@ -85,6 +85,7 @@ class LlasaTTSServer:
         text: str,
         reference_audio_path: Optional[str] = None,
         reference_text: Optional[str] = None,
+        system_prompt: Optional[str] = None,
         temperature: float = 0.8,
         top_p: float = 1.0,
         repetition_penalty: float = 1.1,
@@ -96,6 +97,7 @@ class LlasaTTSServer:
             text: 生成するテキスト
             reference_audio_path: リファレンス音声のパス（オプション）
             reference_text: リファレンス音声のテキスト（オプション）
+            system_prompt: システムプロンプト（オプション、メタデータを含む）
             temperature: サンプリング温度
             top_p: Top-pサンプリング
             repetition_penalty: 繰り返しペナルティ
@@ -119,6 +121,7 @@ class LlasaTTSServer:
             text=text,
             reference_speech_ids=reference_speech_ids,
             reference_text=reference_text,
+            system_prompt=system_prompt,
             temperature=temperature,
             top_p=top_p,
             repetition_penalty=repetition_penalty,

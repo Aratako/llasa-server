@@ -153,3 +153,43 @@ def build_llasa_prompt(
     )
 
     return formatted_text, assistant_content, reference_length
+
+
+def build_system_prompt(
+    caption: str,
+    emotion: str = "",
+    profile: str = "",
+    mood: str = "",
+    speed: str = "",
+    prosody: str = "",
+    pitch_timbre: str = "",
+    style: str = "",
+    notes: str = "",
+) -> str:
+    """メタデータからシステムプロンプトを構築する
+
+    Args:
+        caption: 音声のキャプション（必須）
+        emotion: 感情タグ（オプション）
+        profile: 話者プロファイル（オプション）
+        mood: ムード（オプション）
+        speed: 話速（オプション）
+        prosody: 抑揚（オプション）
+        pitch_timbre: ピッチ・声質（オプション）
+        style: スタイル（オプション）
+        notes: 特記事項（オプション）
+
+    Returns:
+        構築されたシステムプロンプト
+    """
+    return (
+        f"emotion: {emotion}\n"
+        f"profile: {profile}\n"
+        f"mood: {mood}\n"
+        f"speed: {speed}\n"
+        f"prosody: {prosody}\n"
+        f"pitch_timbre: {pitch_timbre}\n"
+        f"style: {style}\n"
+        f"notes: {notes}\n"
+        f"caption: {caption}"
+    )
