@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from .codec import XCodec2Wrapper
+from .config import AudioConstants
 from .engine_base import BaseLlasaEngine
 
 logger = logging.getLogger(__name__)
@@ -108,12 +109,14 @@ class LlasaTTSServer:
         """
         start = time.perf_counter()
         # リファレンス音声がある場合はエンコード
+        prompt_wav_len = 0
         reference_speech_ids = None
         if reference_audio_path is not None:
             logger.debug("リファレンス音声をエンコード中...")
-            reference_speech_ids = self.codec.encode_audio(
+            reference_speech_ids, prompt_wav_len = self.codec.encode_audio(
                 reference_audio_path
-            ).tolist()
+            )
+            reference_speech_ids = reference_speech_ids.tolist()
 
         # Speech tokenを生成
         logger.debug("Speech tokenを生成中...")
@@ -134,6 +137,12 @@ class LlasaTTSServer:
         # Speech tokenを音声にデコード
         logger.debug("音声波形にデコード中...")
         audio_waveform = self.codec.decode_speech_tokens(speech_ids)
+
+        if prompt_wav_len > 0:
+            # リファレンス音声がある場合は先頭をカット
+            input_sr = AudioConstants.SAMPLE_RATE
+            scaled_slice_len = int(prompt_wav_len * self.output_sample_rate / input_sr)
+            audio_waveform = audio_waveform[scaled_slice_len:]
 
         end = time.perf_counter()
         logger.debug(f"音声生成に{end - start:.2f}秒かかりました")

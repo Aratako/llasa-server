@@ -197,6 +197,11 @@ class VLLMLlasaEngine(BaseLlasaEngine):
                 raise RuntimeError("speech IDの抽出に失敗しました")
 
             logger.debug(f"{len(speech_ids)}個のspeech tokenを生成しました")
+            if reference_speech_ids:
+                logger.debug(
+                    f"リファレンス音声の長さ: {len(reference_speech_ids)}トークン"
+                )
+                speech_ids = reference_speech_ids + speech_ids
             return speech_ids
 
         except Exception as e:

@@ -98,6 +98,8 @@ class XCodec2Wrapper:
             else:
                 prompt_wav = waveform
 
+            prompt_wav_len = prompt_wav.shape[1]
+
         except Exception as e:
             logger.error(f"音声の前処理に失敗: {e}")
             raise ValueError(f"音声の前処理に失敗しました: {str(e)}") from e
@@ -112,7 +114,7 @@ class XCodec2Wrapper:
                 ]
 
             logger.debug(f"音声をエンコードしました: {len(vq_code_prompt)}トークン")
-            return vq_code_prompt
+            return vq_code_prompt, prompt_wav_len
 
         except torch.cuda.OutOfMemoryError as e:
             logger.error("GPU メモリ不足エラー")
